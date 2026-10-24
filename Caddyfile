@@ -1,0 +1,13 @@
+{
+	# Automatic HTTPS via Let's Encrypt. Set an email to receive
+	# expiry notifications:
+	# email admin@example.com
+}
+
+example.com {
+	reverse_proxy proxy-app:8080
+}
+
+www.example.com {
+	redir https://example.com{uri}
+}

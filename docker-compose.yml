@@ -1,0 +1,48 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: lingon-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - proxy-app
+
+  proxy-app:
+    build: .
+    container_name: lingon-proxy-app
+    restart: unless-stopped
+    ports:
+      # Must be reachable from the customer VPNs (agent status/commands later),
+      # not only from Caddy. Restrict with host firewall in production.
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Bind a host directory (not a named volume): the Docker daemon must see
+      # the same path when it is bind-mounted into gateway containers.
+      - ${HOST_DATA_DIR:-./data}:/data
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - DATABASE_PATH=/data/proxy.db
+      - ADMIN_KEY=${ADMIN_KEY}
+      - Vpn__PublicEndpointHost=${PUBLIC_ENDPOINT_HOST:-vpn.example.com}
+      - Vpn__HostConfigDir=${HOST_DATA_DIR:-./data}/wireguard
+
+  # Image only - one gateway container per customer app is started by
+  # proxy-app via the Docker API. Build with:
+  #   docker compose --profile build build
+  vpn-gateway:
+    build: ./vpn-gateway
+    image: lingon-vpn-gateway:latest
+    profiles:
+      - build
+
+volumes:
+  caddy-data:
+  caddy-config:
